@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { GE_CHECKS, SODA_CHECKS } from './checks/catalog';
 import { generateGE } from './generators/geGenerator';
 import { generateSoda } from './generators/sodaGenerator';
-import { CustomCheck, Framework, GenerateRequest, SelectedCheck, TableInfo } from './types';
+import { CustomCheck, DataTypeCategory, Framework, GenerateRequest, SelectedCheck, TableInfo } from './types';
 
 export class TestBuilderPanel {
   private static instance: TestBuilderPanel | undefined;
@@ -54,8 +54,13 @@ export class TestBuilderPanel {
     checks?: SelectedCheck[];
     customChecks?: CustomCheck[];
     table?: TableInfo;
+    // check picker
+    columnName?: string;
+    columnCategory?: DataTypeCategory;
+    existingCheckIds?: string[];
   }) {
     switch (message.type) {
+
       case 'generate': {
         if (!message.framework || !message.table) return;
         const req: GenerateRequest = {
@@ -64,17 +69,46 @@ export class TestBuilderPanel {
           checks: message.checks ?? [],
           customChecks: message.customChecks ?? [],
         };
-        const code = message.framework === 'soda'
-          ? generateSoda(req)
-          : generateGE(req);
-
-        const ext = message.framework === 'soda' ? 'yml' : 'py';
+        const code = message.framework === 'soda' ? generateSoda(req) : generateGE(req);
         const lang = message.framework === 'soda' ? 'yaml' : 'python';
-        const doc = await vscode.workspace.openTextDocument({
-          language: lang,
-          content: code,
-        });
+        const doc = await vscode.workspace.openTextDocument({ language: lang, content: code });
         await vscode.window.showTextDocument(doc, vscode.ViewColumn.Active);
+        break;
+      }
+
+      case 'showCheckPicker': {
+        const { columnName, columnCategory, framework, existingCheckIds = [] } = message as Required<typeof message>;
+        if (!columnName || !columnCategory || !framework) return;
+
+        const catalog = framework === 'soda' ? SODA_CHECKS : GE_CHECKS;
+        type CheckItem = vscode.QuickPickItem & { checkId: string };
+
+        const available: CheckItem[] = catalog
+          .filter(d => (d.applies === 'all' || d.applies.includes(columnCategory)) && !existingCheckIds.includes(d.id))
+          .map(d => ({ label: d.label, description: d.description, checkId: d.id }));
+
+        const alreadyAdded: CheckItem[] = catalog
+          .filter(d => existingCheckIds.includes(d.id))
+          .map(d => ({ label: `$(check) ${d.label}`, description: '(already added)', checkId: d.id }));
+
+        const items: CheckItem[] = [
+          ...available,
+          { label: '', kind: vscode.QuickPickItemKind.Separator, checkId: '' },
+          { label: '$(edit) Custom check', description: 'Write your own condition with a name', checkId: 'custom' },
+          ...(alreadyAdded.length > 0 ? [
+            { label: 'Already added', kind: vscode.QuickPickItemKind.Separator, checkId: '' },
+            ...alreadyAdded,
+          ] : []),
+        ];
+
+        const picked = await vscode.window.showQuickPick(items, {
+          placeHolder: `Add check for ${columnName} (${columnCategory})`,
+          matchOnDescription: true,
+        });
+
+        if (picked?.checkId) {
+          this.panel.webview.postMessage({ type: 'checkPicked', columnName, checkId: picked.checkId });
+        }
         break;
       }
     }
@@ -304,8 +338,7 @@ export class TestBuilderPanel {
       color: var(--vscode-descriptionForeground);
     }
 
-    /* ── Add check dropdown ──────────────────────────── */
-    .add-check-wrap { position: relative; }
+    /* ── Add check button ────────────────────────────── */
     .add-check-btn {
       width: 100%;
       padding: 5px 10px;
@@ -319,37 +352,6 @@ export class TestBuilderPanel {
       text-align: left;
     }
     .add-check-btn:hover { background: var(--vscode-list-hoverBackground); }
-
-    .check-dropdown {
-      position: absolute;
-      top: 100%;
-      left: 0;
-      right: 0;
-      z-index: 100;
-      background: var(--vscode-dropdown-background);
-      border: 1px solid var(--vscode-dropdown-border);
-      border-radius: 4px;
-      max-height: 260px;
-      overflow-y: auto;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    }
-    .dropdown-item {
-      padding: 7px 12px;
-      cursor: pointer;
-      font-size: 0.88em;
-    }
-    .dropdown-item:hover { background: var(--vscode-list-hoverBackground); }
-    .dropdown-item.dimmed { color: var(--vscode-disabledForeground); cursor: default; }
-    .dropdown-item .item-desc {
-      font-size: 0.78em;
-      color: var(--vscode-descriptionForeground);
-      margin-top: 1px;
-    }
-    .dropdown-divider {
-      border: none;
-      border-top: 1px solid var(--vscode-panel-border);
-      margin: 4px 0;
-    }
 
     /* ── Generate button ─────────────────────────────── */
     .generate-wrap {
@@ -431,23 +433,39 @@ export class TestBuilderPanel {
     customChecks: {},
   };
 
-  // ── Message from extension ──────────────────────────────────────────────
+  // ── Messages from extension ─────────────────────────────────────────────
   window.addEventListener('message', e => {
     const msg = e.data;
     if (msg.type === 'loadTable') {
       loadTable(msg.table);
+    } else if (msg.type === 'checkPicked') {
+      const col = state.table && state.table.columns.find(c => c.name === msg.columnName);
+      if (!col) return;
+      if (msg.checkId === 'custom') {
+        addCustomCheck(col);
+      } else {
+        const def = getCatalog().find(d => d.id === msg.checkId);
+        if (def) addCheck(col, def);
+      }
     }
   });
 
   function loadTable(table) {
     state.table = table;
-    state.framework = null;
+    // Keep state.framework — framework is a one-time session choice, not per table
     state.checks = {};
     state.customChecks = {};
 
-    show('framework-picker');
-    document.getElementById('picker-table-name').textContent =
-      table.schema + '.' + table.table + ' (' + table.columns.length + ' columns)';
+    if (state.framework) {
+      // Framework already chosen — go straight to builder
+      buildUI();
+      show('builder');
+    } else {
+      // First table ever — show the framework picker once
+      show('framework-picker');
+      document.getElementById('picker-table-name').textContent =
+        table.schema + '.' + table.table + ' (' + table.columns.length + ' columns)';
+    }
   }
 
   function pickFramework(fw) {
@@ -545,7 +563,14 @@ export class TestBuilderPanel {
     btn.textContent = '+ Add check';
     btn.addEventListener('click', e => {
       e.stopPropagation();
-      toggleDropdown(col, wrap, btn);
+      const existingIds = (state.checks[col.name] || []).map(c => c.checkId);
+      vscode.postMessage({
+        type: 'showCheckPicker',
+        columnName: col.name,
+        columnCategory: col.category,
+        framework: state.framework,
+        existingCheckIds: existingIds,
+      });
     });
 
     wrap.appendChild(btn);
@@ -645,71 +670,6 @@ export class TestBuilderPanel {
     row.appendChild(exprInput);
 
     return row;
-  }
-
-  // ── Dropdown ──────────────────────────────────────────────────────────
-  let activeDropdown = null;
-
-  function toggleDropdown(col, wrap, btn) {
-    if (activeDropdown) {
-      activeDropdown.remove();
-      activeDropdown = null;
-      return;
-    }
-
-    const dd = document.createElement('div');
-    dd.className = 'check-dropdown';
-    activeDropdown = dd;
-
-    const catalog = getCatalog();
-    const existingIds = (state.checks[col.name] || []).map(c => c.checkId);
-
-    for (const def of catalog) {
-      const applicable = def.applies === 'all' || def.applies.includes(col.category);
-      const alreadyAdded = existingIds.includes(def.id);
-
-      const item = document.createElement('div');
-      item.className = 'dropdown-item' + (!applicable || alreadyAdded ? ' dimmed' : '');
-
-      item.innerHTML =
-        '<div>' + escHtml(def.label) + (alreadyAdded ? ' ✓' : '') + '</div>' +
-        '<div class="item-desc">' + escHtml(def.description) + '</div>';
-
-      if (applicable && !alreadyAdded) {
-        item.addEventListener('click', () => {
-          addCheck(col, def);
-          dd.remove();
-          activeDropdown = null;
-        });
-      }
-      dd.appendChild(item);
-    }
-
-    // Divider + Custom
-    const divider = document.createElement('hr');
-    divider.className = 'dropdown-divider';
-    dd.appendChild(divider);
-
-    const customItem = document.createElement('div');
-    customItem.className = 'dropdown-item';
-    customItem.innerHTML = '<div>Custom check</div><div class="item-desc">Write your own condition with a name</div>';
-    customItem.addEventListener('click', () => {
-      addCustomCheck(col);
-      dd.remove();
-      activeDropdown = null;
-    });
-    dd.appendChild(customItem);
-
-    wrap.appendChild(dd);
-
-    // Close on outside click
-    setTimeout(() => {
-      document.addEventListener('click', function handler() {
-        dd.remove();
-        activeDropdown = null;
-        document.removeEventListener('click', handler);
-      }, { once: true });
-    }, 0);
   }
 
   function addCheck(col, def) {
