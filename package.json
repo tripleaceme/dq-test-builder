@@ -1,0 +1,87 @@
+{
+  "name": "dq-test-builder",
+  "displayName": "DQ Test Builder — Great Expectations & Soda",
+  "description": "Visual sidebar builder that generates Great Expectations and Soda Core data quality tests from your live database schema — no code required.",
+  "version": "0.1.0",
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["Other"],
+  "keywords": [
+    "data quality",
+    "great expectations",
+    "soda core",
+    "sodacl",
+    "dbt",
+    "data testing",
+    "data validation",
+    "modern data stack",
+    "data engineering",
+    "postgres"
+  ],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "dq-builder",
+          "title": "Data Quality",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "dq-builder": [
+        {
+          "id": "dq-schema-tree",
+          "name": "Tables"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "dq-builder.openTable",
+        "title": "Open Test Builder"
+      },
+      {
+        "command": "dq-builder.refreshTree",
+        "title": "Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "dq-builder.configureConnection",
+        "title": "Configure Connection",
+        "icon": "$(settings-gear)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "dq-builder.refreshTree",
+          "when": "view == dq-schema-tree",
+          "group": "navigation@1"
+        },
+        {
+          "command": "dq-builder.configureConnection",
+          "when": "view == dq-schema-tree",
+          "group": "navigation@2"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "vscode:prepublish": "npm run compile"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0",
+    "pg": "^8.11.3"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^20.0.0",
+    "@types/pg": "^8.11.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.0"
+  }
+}
