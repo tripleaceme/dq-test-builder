@@ -33,7 +33,7 @@ class PostgresAdapter implements DbAdapter {
       port: this.config.port ?? 5432,
       database: this.config.database,
       user: this.config.user,
-      password: this.config.password,
+      password: this.config.password ?? '',
       connectionTimeoutMillis: 5000,
       ssl: this.config.type === 'redshift' ? { rejectUnauthorized: false } : undefined,
     });

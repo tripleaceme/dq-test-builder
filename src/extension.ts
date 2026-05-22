@@ -16,10 +16,12 @@ export async function activate(context: vscode.ExtensionContext) {
     showCollapseAll: true,
   });
 
-  // Auto-detect connection on startup
+  // Auto-detect from ~/.dbt/profiles.yml / .env on startup
   const config = await detectConnection();
   if (config) {
     await connectWithConfig(config);
+  } else {
+    treeProvider.setError('No credentials found. Click ⚙ to select your profiles.yml or credentials file.');
   }
 
   // Command: open table in webview
@@ -91,7 +93,14 @@ async function connectWithConfig(config: ConnectionConfig) {
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     treeProvider.setError(`Cannot connect: ${msg}`);
-    vscode.window.showErrorMessage(`DQ Builder: connection failed: ${msg}`);
+    const action = await vscode.window.showErrorMessage(
+      `DQ Builder: connection failed: ${msg}`,
+      'Select credentials file'
+    );
+    if (action === 'Select credentials file') {
+      const newConfig = await promptForConnection();
+      if (newConfig) await connectWithConfig(newConfig);
+    }
   }
 }
 

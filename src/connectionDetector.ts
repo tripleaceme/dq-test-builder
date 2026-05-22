@@ -13,42 +13,58 @@ interface DbtProfile {
   };
 }
 
-// ── Parse a single dbt output block ────────────────────────────────────────
+// ── Resolve dbt env_var() template strings ──────────────────────────────────
+// dbt profiles often store credentials as {{ env_var('MY_VAR') }} or
+// {{ env_var('MY_VAR', 'fallback') }}. js-yaml returns these as literal strings;
+// we resolve them against process.env before handing to the DB driver.
+
+function resolveValue(value: unknown): string | undefined {
+  if (value === null || value === undefined) return undefined;
+  const str = String(value);
+  const m = str.match(/^\s*\{\{\s*env_var\s*\(\s*['"]([^'"]+)['"]\s*(?:,\s*['"]([^'"]*)['"]\s*)?\)\s*\}\}\s*$/);
+  if (m) return process.env[m[1]] ?? m[2] ?? undefined;
+  return str || undefined;
+}
+
+// ── Parse one dbt output block into a ConnectionConfig ──────────────────────
 
 function parseOutput(output: DbtOutput): ConnectionConfig | null {
   const type = output['type'] as string;
 
   if (type === 'postgres' || type === 'redshift') {
+    // dbt accepts both 'password' and 'pass' as aliases
+    const password = resolveValue(output['password'] ?? output['pass']);
     return {
       type,
-      host: (output['host'] as string) || 'localhost',
-      port: (output['port'] as number) || (type === 'redshift' ? 5439 : 5432),
-      database: (output['dbname'] as string) || (output['database'] as string) || '',
-      user: (output['user'] as string) || '',
-      password: (output['password'] as string) || '',
-      schema: (output['schema'] as string) || 'public',
+      host:     resolveValue(output['host']),
+      port:     (output['port'] as number) || (type === 'redshift' ? 5439 : 5432),
+      database: resolveValue(output['dbname'] ?? output['database']),
+      user:     resolveValue(output['user']),
+      password,
+      // Use exactly what the profile says — no default schema imposed
+      schema:   resolveValue(output['schema']),
     };
   }
 
   if (type === 'snowflake') {
     return {
       type: 'snowflake',
-      account: (output['account'] as string) || '',
-      user: (output['user'] as string) || '',
-      password: (output['password'] as string) || '',
-      database: (output['database'] as string) || '',
-      schema: (output['schema'] as string) || 'PUBLIC',
-      warehouse: (output['warehouse'] as string) || '',
-      role: (output['role'] as string) || undefined,
+      account:   resolveValue(output['account']),
+      user:      resolveValue(output['user']),
+      password:  resolveValue(output['password'] ?? output['pass']),
+      database:  resolveValue(output['database']),
+      schema:    resolveValue(output['schema']),   // no hardcoded 'PUBLIC'
+      warehouse: resolveValue(output['warehouse']),
+      role:      resolveValue(output['role']),
     };
   }
 
   if (type === 'bigquery') {
     return {
-      type: 'bigquery',
-      projectId: (output['project'] as string) || '',
-      dataset: (output['dataset'] as string) || '',
-      keyFile: (output['keyfile'] as string) || undefined,
+      type:      'bigquery',
+      projectId: resolveValue(output['project']),
+      dataset:   resolveValue(output['dataset']),
+      keyFile:   resolveValue(output['keyfile']),
     };
   }
 
@@ -57,10 +73,20 @@ function parseOutput(output: DbtOutput): ConnectionConfig | null {
 
 // ── File readers ────────────────────────────────────────────────────────────
 
-function tryProfilesFile(filePath: string): ConnectionConfig | null {
+export function tryProfilesFile(filePath: string): ConnectionConfig | null {
   if (!fs.existsSync(filePath)) return null;
   try {
-    const profiles = yaml.load(fs.readFileSync(filePath, 'utf8')) as DbtProfile;
+    const parsed = yaml.load(fs.readFileSync(filePath, 'utf8'));
+    if (!parsed || typeof parsed !== 'object') return null;
+
+    const profiles = parsed as DbtProfile;
+
+    // Detect dbt_project.yml (has 'name' + 'version' but no profile outputs)
+    const firstVal = Object.values(profiles)[0];
+    if ('name' in profiles && 'version' in profiles && firstVal && !('outputs' in firstVal)) {
+      return null;
+    }
+
     for (const key of Object.keys(profiles)) {
       if (key === 'config') continue;
       const profile = profiles[key];
@@ -74,7 +100,7 @@ function tryProfilesFile(filePath: string): ConnectionConfig | null {
   return null;
 }
 
-function tryBigQueryKeyFile(filePath: string): ConnectionConfig | null {
+export function tryBigQueryKeyFile(filePath: string): ConnectionConfig | null {
   if (!fs.existsSync(filePath)) return null;
   try {
     const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'));
@@ -103,14 +129,16 @@ function tryEnvFile(filePath: string): ConnectionConfig | null {
     database,
     user,
     password: env['DB_PASSWORD'] || env['POSTGRES_PASSWORD'] || env['DATABASE_PASSWORD'] || '',
-    schema: env['DB_SCHEMA'] || 'public',
+    schema: env['DB_SCHEMA'] || undefined,
   };
 }
 
 // ── Auto-detect ─────────────────────────────────────────────────────────────
 
+const DEFAULT_PROFILES = path.join(os.homedir(), '.dbt', 'profiles.yml');
+
 export async function detectConnection(): Promise<ConnectionConfig | null> {
-  // 1. Honour user-configured path from VS Code settings
+  // 1. User-configured path takes priority
   const customPath = vscode.workspace.getConfiguration('dq-test-builder').get<string>('credentialsPath');
   if (customPath) {
     const expanded = customPath.replace(/^~/, os.homedir());
@@ -118,8 +146,8 @@ export async function detectConnection(): Promise<ConnectionConfig | null> {
     if (config) return config;
   }
 
-  // 2. Default dbt profiles.yml
-  const fromProfiles = tryProfilesFile(path.join(os.homedir(), '.dbt', 'profiles.yml'));
+  // 2. Default ~/.dbt/profiles.yml
+  const fromProfiles = tryProfilesFile(DEFAULT_PROFILES);
   if (fromProfiles) return fromProfiles;
 
   // 3. Workspace .env
@@ -139,34 +167,37 @@ export async function promptForConnection(): Promise<ConnectionConfig | null> {
       { label: '$(database) PostgreSQL', value: 'postgres' },
       { label: '$(database) Redshift', value: 'redshift' },
       { label: '$(server-environment) Snowflake', value: 'snowflake' },
-      { label: '$(cloud) BigQuery (service account JSON)', value: 'bigquery' },
+      { label: '$(cloud) BigQuery', value: 'bigquery' },
       { label: '$(link) Connection string (Postgres / Redshift)', value: 'connstring' },
     ],
-    { placeHolder: 'Select database type' }
+    { placeHolder: 'Select your database type' }
   );
   if (!dbType) return null;
 
-  // BigQuery: pick service account JSON file
+  // BigQuery: browse for service account JSON
   if (dbType.value === 'bigquery') {
     const uris = await vscode.window.showOpenDialog({
       canSelectMany: false,
       filters: { 'Service Account JSON': ['json'] },
       openLabel: 'Select service account key file',
+      title: 'BigQuery — select your service account JSON key file',
     });
     if (!uris?.[0]) return null;
     const config = tryBigQueryKeyFile(uris[0].fsPath);
     if (!config) {
-      vscode.window.showErrorMessage('File does not look like a BigQuery service account key.');
+      vscode.window.showErrorMessage(
+        'DQ Builder: file does not look like a BigQuery service account key. Expected {"type":"service_account","project_id":...}'
+      );
       return null;
     }
     await persistPath(uris[0].fsPath);
     return config;
   }
 
-  // Connection string shortcut
+  // Connection string shortcut for Postgres / Redshift
   if (dbType.value === 'connstring') {
     const str = await vscode.window.showInputBox({
-      prompt: 'Enter a PostgreSQL / Redshift connection string',
+      prompt: 'Enter a PostgreSQL or Redshift connection string',
       placeHolder: 'postgresql://user:password@host:5432/database',
       ignoreFocusOut: true,
     });
@@ -180,27 +211,39 @@ export async function promptForConnection(): Promise<ConnectionConfig | null> {
         database: url.pathname.replace('/', ''),
         user: decodeURIComponent(url.username),
         password: decodeURIComponent(url.password),
-        schema: 'public',
       };
     } catch {
-      vscode.window.showErrorMessage('Invalid connection string format.');
+      vscode.window.showErrorMessage('DQ Builder: invalid connection string format.');
       return null;
     }
   }
 
-  // All other types: browse for credentials file
+  // All other types: browse for profiles.yml / .env
+  // Default to ~/.dbt/ so users see profiles.yml immediately
   const uris = await vscode.window.showOpenDialog({
     canSelectMany: false,
+    defaultUri: vscode.Uri.file(path.join(os.homedir(), '.dbt')),
     filters: { 'dbt profiles / YAML / env': ['yml', 'yaml', 'env'] },
     openLabel: 'Select credentials file',
-    title: `Browse for ${dbType.label.replace(/^\$\([^)]+\) /, '')} credentials`,
+    title: 'Select your dbt profiles.yml or .env file',
   });
   if (!uris?.[0]) return null;
 
   const filePath = uris[0].fsPath;
+
+  // Detect if the user accidentally selected dbt_project.yml
+  if (path.basename(filePath) === 'dbt_project.yml') {
+    vscode.window.showErrorMessage(
+      'DQ Builder: that\'s a dbt project file, not a credentials file. Please select your profiles.yml (usually at ~/.dbt/profiles.yml).'
+    );
+    return null;
+  }
+
   const config = tryProfilesFile(filePath) ?? tryEnvFile(filePath);
   if (!config) {
-    vscode.window.showErrorMessage('Could not parse a connection from the selected file.');
+    vscode.window.showErrorMessage(
+      'DQ Builder: could not parse a connection from that file. Make sure it\'s a valid dbt profiles.yml or .env file.'
+    );
     return null;
   }
 
