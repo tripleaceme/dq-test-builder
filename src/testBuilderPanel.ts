@@ -2,12 +2,13 @@ import * as vscode from 'vscode';
 import { GE_CHECKS, SODA_CHECKS } from './checks/catalog';
 import { generateGE } from './generators/geGenerator';
 import { generateSoda } from './generators/sodaGenerator';
-import { CustomCheck, DataTypeCategory, Framework, GenerateRequest, SelectedCheck, TableInfo } from './types';
+import { ConnectionConfig, CustomCheck, DataTypeCategory, Framework, GenerateRequest, SelectedCheck, TableInfo } from './types';
 
 export class TestBuilderPanel {
-  private static instance: TestBuilderPanel | undefined;
+  static instance: TestBuilderPanel | undefined;
   private readonly panel: vscode.WebviewPanel;
   private disposables: vscode.Disposable[] = [];
+  private connectionType: ConnectionConfig['type'] | undefined;
 
   private constructor(
     panel: vscode.WebviewPanel,
@@ -48,6 +49,10 @@ export class TestBuilderPanel {
     this.panel.webview.postMessage({ type: 'loadTable', table });
   }
 
+  setConnectionType(type: ConnectionConfig['type']) {
+    this.connectionType = type;
+  }
+
   private async handleMessage(message: {
     type: string;
     framework?: Framework;
@@ -68,6 +73,7 @@ export class TestBuilderPanel {
           table: message.table,
           checks: message.checks ?? [],
           customChecks: message.customChecks ?? [],
+          connectionType: this.connectionType,
         };
         const code = message.framework === 'soda' ? generateSoda(req) : generateGE(req);
         const lang = message.framework === 'soda' ? 'yaml' : 'python';

@@ -34,6 +34,7 @@ export async function activate(context: vscode.ExtensionContext) {
           return;
         }
         const panel = TestBuilderPanel.show(context.extensionUri);
+        if (dbClient) panel.setConnectionType(dbClient.connectionType);
         const columns: ColumnInfo[] = await vscode.window.withProgress(
           {
             location: vscode.ProgressLocation.Notification,
@@ -86,6 +87,7 @@ async function connectWithConfig(config: ConnectionConfig) {
     await client.testConnection();
     dbClient = client;
     treeProvider.setClient(dbClient);
+    TestBuilderPanel.instance?.setConnectionType(config.type);
     vscode.window.setStatusBarMessage(
       `$(database) DQ Builder connected to ${config.database}`,
       5000
