@@ -50,11 +50,20 @@ export interface GenerateRequest {
 }
 
 export interface ConnectionConfig {
-  type: 'postgres' | 'snowflake' | 'bigquery' | 'redshift';
-  host: string;
-  port: number;
-  database: string;
-  user: string;
-  password: string;
-  schema: string;
+  type: 'postgres' | 'redshift' | 'snowflake' | 'bigquery';
+  // Postgres / Redshift
+  host?: string;
+  port?: number;
+  database?: string;
+  user?: string;
+  password?: string;
+  schema?: string;
+  // Snowflake-specific
+  account?: string;
+  warehouse?: string;
+  role?: string;
+  // BigQuery-specific
+  projectId?: string;
+  keyFile?: string;
+  dataset?: string;
 }

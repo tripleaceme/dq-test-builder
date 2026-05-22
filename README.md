@@ -32,19 +32,21 @@ Connect to your database, browse your tables, pick checks per column from a full
 
 ## Supported Databases
 
-| Database | Via |
-|---|---|
-| PostgreSQL | dbt profiles.yml / .env / connection string |
-| Redshift | dbt profiles.yml |
+| Database | Auto-detect source | Manual |
+|---|---|---|
+| PostgreSQL | `~/.dbt/profiles.yml` / `.env` | Connection string |
+| Redshift | `~/.dbt/profiles.yml` | Connection string |
+| Snowflake | `~/.dbt/profiles.yml` | Browse for profiles.yml |
+| BigQuery | `~/.dbt/profiles.yml` | Browse for service account JSON |
 
-Snowflake and BigQuery support coming soon.
+**Custom credentials path:** set `dq-test-builder.credentialsPath` in VS Code settings to point at any profiles.yml, BigQuery service account JSON, or .env file — the extension will use that instead of the default lookup.
 
 ---
 
 ## Requirements
 
 - VS Code 1.85+
-- A running PostgreSQL (or Redshift) database
+- A running database (PostgreSQL, Redshift, Snowflake, or BigQuery)
 - Optional: dbt project with `~/.dbt/profiles.yml`
 
 ---

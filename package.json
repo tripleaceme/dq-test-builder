@@ -7,8 +7,12 @@
     "type": "git",
     "url": "https://github.com/tripleaceme/dq-test-builder.git"
   },
-  "engines": { "vscode": "^1.85.0" },
-  "categories": ["Other"],
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
   "keywords": [
     "data quality",
     "great expectations",
@@ -19,10 +23,14 @@
     "data validation",
     "modern data stack",
     "data engineering",
-    "postgres"
+    "postgres",
+    "snowflake",
+    "bigquery"
   ],
   "publisher": "tripleaceme",
-  "activationEvents": ["onStartupFinished"],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "viewsContainers": {
@@ -71,6 +79,16 @@
           "group": "navigation@2"
         }
       ]
+    },
+    "configuration": {
+      "title": "DQ Test Builder",
+      "properties": {
+        "dq-test-builder.credentialsPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to your credentials file — dbt profiles.yml, BigQuery service account JSON, or .env file. Overrides the default ~/.dbt/profiles.yml lookup. Supports ~ for home directory."
+        }
+      }
     }
   },
   "scripts": {
@@ -81,8 +99,10 @@
     "vscode:prepublish": "npm run build"
   },
   "dependencies": {
+    "@google-cloud/bigquery": "^8.3.1",
     "js-yaml": "^4.1.0",
-    "pg": "^8.11.3"
+    "pg": "^8.11.3",
+    "snowflake-sdk": "^2.4.2"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",

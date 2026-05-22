@@ -55,28 +55,22 @@ export async function activate(context: vscode.ExtensionContext) {
   // Command: configure connection
   context.subscriptions.push(
     vscode.commands.registerCommand('dq-builder.configureConnection', async () => {
-      const choice = await vscode.window.showQuickPick(
-        [
-          { label: '$(search) Auto-detect from dbt profiles.yml / .env', value: 'auto' },
-          { label: '$(edit) Enter connection string manually', value: 'manual' },
-        ],
-        { placeHolder: 'How would you like to connect?' }
-      );
-      if (!choice) return;
-
-      let config: ConnectionConfig | null = null;
-      if (choice.value === 'auto') {
-        config = await detectConnection();
-        if (!config) {
-          vscode.window.showWarningMessage(
-            'No connection found in dbt profiles.yml or .env. Try entering one manually.'
-          );
-          return;
-        }
-      } else {
+      // First try auto-detect; if nothing found, fall through to the manual picker
+      let config: ConnectionConfig | null = await detectConnection();
+      if (!config) {
         config = await promptForConnection();
+      } else {
+        // Connection found — ask whether to use it or pick a different one
+        const use = await vscode.window.showQuickPick(
+          [
+            { label: `$(check) Use auto-detected connection (${config.type})`, value: 'use' },
+            { label: '$(folder-opened) Browse for a different credentials file', value: 'browse' },
+          ],
+          { placeHolder: 'Connection detected' }
+        );
+        if (!use) return;
+        if (use.value === 'browse') config = await promptForConnection();
       }
-
       if (config) await connectWithConfig(config);
     })
   );
@@ -97,7 +91,7 @@ async function connectWithConfig(config: ConnectionConfig) {
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     treeProvider.setError(`Cannot connect: ${msg}`);
-    vscode.window.showErrorMessage(`DQ Builder: connection failed — ${msg}`);
+    vscode.window.showErrorMessage(`DQ Builder: connection failed: ${msg}`);
   }
 }
 
