@@ -897,7 +897,10 @@ To prevent this error, please consider passing 'options.wrapIntegers' as
     row.appendChild(top);
 
     // Name field
-    row.innerHTML += '<div class="custom-field-label">Name <span style="color:var(--vscode-errorForeground)">*</span></div>';
+    const nameLabel = document.createElement('div');
+    nameLabel.className = 'custom-field-label';
+    nameLabel.innerHTML = 'Name <span style="color:var(--vscode-errorForeground)">*</span>';
+    row.appendChild(nameLabel);
     const nameInput = document.createElement('input');
     nameInput.className = 'custom-name-input';
     nameInput.placeholder = 'e.g. "Revenue cannot be negative"';
