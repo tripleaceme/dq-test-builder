@@ -16,7 +16,7 @@ export class TestBuilderPanel {
     private readonly context: vscode.ExtensionContext,
   ) {
     this.panel = panel;
-    const storedFramework = context.globalState.get<string>('dq-test-builder.framework') ?? null;
+    const storedFramework = context.globalState.get<string>('dq-studio.framework') ?? null;
     this.panel.webview.html = this.buildHtml(storedFramework);
     this.panel.onDidDispose(() => this.dispose(), null, this.disposables);
     this.panel.webview.onDidReceiveMessage(this.handleMessage.bind(this), null, this.disposables);
@@ -69,7 +69,7 @@ export class TestBuilderPanel {
     switch (message.type) {
 
       case 'frameworkChosen': {
-        await this.context.globalState.update('dq-test-builder.framework', message.framework ?? undefined);
+        await this.context.globalState.update('dq-studio.framework', message.framework ?? undefined);
         break;
       }
 

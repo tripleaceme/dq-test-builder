@@ -76,7 +76,7 @@ Click **Generate Tests**. The output opens in a new editor tab with the correct 
 | Snowflake | `~/.dbt/profiles.yml` | Browse for `profiles.yml` |
 | BigQuery | `~/.dbt/profiles.yml` | Browse for service account JSON |
 
-**Custom credentials path:** Set `dq-test-builder.credentialsPath` in VS Code Settings to point at any `profiles.yml`, BigQuery service account JSON, or `.env` file. The extension uses that path instead of the default lookup. Supports `~` for the home directory.
+**Custom credentials path:** Set `dq-studio.credentialsPath` in VS Code Settings to point at any `profiles.yml`, BigQuery service account JSON, or `.env` file. The extension uses that path instead of the default lookup. Supports `~` for the home directory.
 
 ---
 
@@ -228,7 +228,7 @@ print(result)
 
 On startup the extension tries the following in order:
 
-1. The path set in `dq-test-builder.credentialsPath` (if configured)
+1. The path set in `dq-studio.credentialsPath` (if configured)
 2. `~/.dbt/profiles.yml` — reads your active target and resolves `{{ env_var('VAR') }}` templates against your shell environment
 3. A `.env` file in the open workspace root (looks for `DB_HOST`, `DB_USER`, `DB_NAME` and variants)
 
@@ -247,11 +247,11 @@ Click the **⚙** icon in the Data Quality sidebar title bar. You can:
 
 ### Persistent credentials path
 
-Set `dq-test-builder.credentialsPath` in VS Code Settings (or `settings.json`) to avoid browsing each time:
+Set `dq-studio.credentialsPath` in VS Code Settings (or `settings.json`) to avoid browsing each time:
 
 ```json
 {
-  "dq-test-builder.credentialsPath": "~/.dbt/profiles.yml"
+  "dq-studio.credentialsPath": "~/.dbt/profiles.yml"
 }
 ```
 

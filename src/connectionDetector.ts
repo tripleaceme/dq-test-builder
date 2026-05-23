@@ -139,7 +139,7 @@ const DEFAULT_PROFILES = path.join(os.homedir(), '.dbt', 'profiles.yml');
 
 export async function detectConnection(): Promise<ConnectionConfig | null> {
   // 1. User-configured path takes priority
-  const customPath = vscode.workspace.getConfiguration('dq-test-builder').get<string>('credentialsPath');
+  const customPath = vscode.workspace.getConfiguration('dq-studio').get<string>('credentialsPath');
   if (customPath) {
     const expanded = customPath.replace(/^~/, os.homedir());
     const config = tryProfilesFile(expanded) ?? tryBigQueryKeyFile(expanded) ?? tryEnvFile(expanded);
@@ -252,7 +252,7 @@ export async function promptForConnection(): Promise<ConnectionConfig | null> {
 }
 
 async function persistPath(filePath: string) {
-  await vscode.workspace.getConfiguration('dq-test-builder').update(
+  await vscode.workspace.getConfiguration('dq-studio').update(
     'credentialsPath', filePath, vscode.ConfigurationTarget.Global
   );
 }

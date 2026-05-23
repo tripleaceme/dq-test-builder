@@ -1,5 +1,5 @@
 {
-  "name": "dq-test-builder",
+  "name": "dq-studio",
   "displayName": "DQ Test Builder — Great Expectations & Soda",
   "description": "Visual sidebar builder that generates Great Expectations and Soda Core data quality tests from your live database schema — no code required.",
   "version": "0.2.0",
@@ -84,7 +84,7 @@
     "configuration": {
       "title": "DQ Test Builder",
       "properties": {
-        "dq-test-builder.credentialsPath": {
+        "dq-studio.credentialsPath": {
           "type": "string",
           "default": "",
           "description": "Path to your credentials file — dbt profiles.yml, BigQuery service account JSON, or .env file. Overrides the default ~/.dbt/profiles.yml lookup. Supports ~ for home directory."
