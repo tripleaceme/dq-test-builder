@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.2.0] — 2026-05-23
+
+### Added
+- **Snowflake and BigQuery support** — full adapter support alongside PostgreSQL and Redshift; auto-detected from `~/.dbt/profiles.yml`
+- **Custom credentials path** — set `dq-test-builder.credentialsPath` in VS Code Settings to any `profiles.yml`, BigQuery service account JSON, or `.env` file
+- **Framework choice persisted across sessions** — Soda Core / GE selection is stored in VS Code global state and restored on next launch; the picker is shown only once
+- **VS Code native check picker** — `+ Add check` now opens the command palette at the top of the editor (searchable, keyboard-navigable) instead of an inline dropdown
+- **Real connection values in generated output** — generated GE Python and Soda YAML include the actual host, port, database, and user from the active session; only the password remains as an env var placeholder
+- **`DATABASE_URL` convention for GE output** — single connection string env var instead of separate host/port/user variables; set it once, all generated files pick it up
+- **Soda `configuration.yml` block** — generated Soda YAML includes a ready-to-fill `configuration.yml` snippet and the correct `soda-core-*` package for the connected DB type
+- **GE checkpoint and run block** — generated GE Python now includes the full datasource setup, `add_or_update_checkpoint`, and `checkpoint.run()` so the file is executable as-is
+- **`{{ env_var('VAR') }}` resolution** — dbt profiles using environment variable templates are resolved against the current shell environment before connecting
+
+### Fixed
+- **SASL authentication error** — `pg` client requires password as a string; `undefined` now coerced to `''` to prevent SCRAM handshake failure
+- **Hardcoded schema defaults removed** — `|| 'public'` and `|| 'PUBLIC'` overrides stripped; the schema from the profile is used exactly as written
+- **Custom check remove button** — `row.innerHTML +=` was destroying the event listener on the × button; replaced with `createElement` + `appendChild`
+- **Connection timeout no longer prompts for credentials** — transient errors (timeout, ECONNREFUSED) show only the error message; the "Select credentials file" action is reserved for auth failures
+- **File picker defaults to `~/.dbt/`** — opening the credentials browser now starts at the dbt directory instead of the system root
+- **`dbt_project.yml` guard** — selecting the project file instead of `profiles.yml` now shows a clear error explaining the difference
+
+---
+
 ## [0.1.0] — 2026-05-22
 
 ### Added

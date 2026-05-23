@@ -1,56 +1,278 @@
 # DQ Test Builder — Great Expectations & Soda
 
-A VS Code extension that lets data engineers build data quality tests visually — no memorising check syntax required.
+> Build production-ready data quality tests visually — no memorising SodaCL or Great Expectations syntax.
 
-Connect to your database, browse your tables, pick checks per column from a full catalog, and generate ready-to-use **SodaCL YAML** or **Great Expectations Python** in one click.
+Connect to your live database, browse schemas and tables directly in the VS Code sidebar, pick checks from a full catalog filtered to each column's data type, and generate ready-to-run **SodaCL YAML** or **Great Expectations Python** in one click.
+
+---
+
+## How It Works
+
+### 1. Connect and browse your database
+
+The extension auto-detects your credentials from `~/.dbt/profiles.yml` or a workspace `.env` file on startup. Your schemas and tables appear immediately in the **Data Quality** sidebar — no configuration required if you already have dbt set up.
+
+![Sidebar tree and framework picker](schema-table-framework%20view.png)
+
+Click any table to open the test builder panel.
+
+---
+
+### 2. Pick your framework — once per session
+
+Choose **Soda Core** or **Great Expectations** the first time you open a table. The choice is remembered across VS Code sessions — you will never be asked again unless you explicitly switch.
+
+![Framework picker](select_framework.png)
+
+Checks are tailored to the framework you pick. There is no mixing: Soda checks produce SodaCL YAML, GE checks produce Python.
+
+---
+
+### 3. Add checks per column
+
+Every column is shown with its data type badge. Click a column to expand it and use **+ Add check** to open VS Code's native command palette — searchable, keyboard-navigable, and filtered to checks that apply to that column's type.
+
+![Check builder with checks added per column](GE-choose-test-2.png)
+
+Numeric columns get range checks (min, max, avg, sum, percentile). Text columns get length and regex checks. Timestamp columns get freshness and date-range checks. Booleans and categoricals get value-set checks. Every column gets null and uniqueness checks.
+
+---
+
+### 4. Generate — opens in a new editor tab
+
+Click **Generate Tests**. The output opens in a new editor tab with the correct language mode already set (YAML for Soda, Python for GE). Save the file wherever your project expects it — there is no fixed output path.
+
+![Generated GE Python alongside the builder](GE-fct_orders-test.png)
+
+![Full generated GE Python file](GE-test-generated.png)
+
+![Soda Core YAML with configuration hint](Soda-dim_channels-test.png)
 
 ---
 
 ## Features
 
-- **Auto-connects** from your existing `~/.dbt/profiles.yml` or `.env` — no separate config
-- **Sidebar tree** browses schemas → tables live from your database
-- **Framework picker** — choose Soda Core or Great Expectations; checks are specific to your selection (no mixing)
-- **Full check catalog** per column, filtered by data type:
-  - Presence & validity (not null, unique, values in set…)
-  - Numeric stats (min, max, average, sum, std dev, percentile…)
-  - String patterns (regex, length, date format…)
-  - Timestamp & freshness (freshness window, date ranges…)
-- **Custom checks** — any check that isn't in the catalog: type a name + your own condition, and it gets generated correctly for whichever framework you picked
-- Generated code opens in a **new editor tab** — save it wherever your project expects it
-
----
-
-## Quick Start
-
-1. Install the extension
-2. Open the **Data Quality** icon in the activity bar
-3. If no connection is auto-detected, click ⚙ and paste a connection string
-4. Click any table → pick your framework → add checks → **Generate Tests**
+- **Zero-config auto-connect** — reads `~/.dbt/profiles.yml` (resolves `{{ env_var('...') }}` templates), workspace `.env`, or a custom path you set once in VS Code settings
+- **Live schema browser** — schemas → tables loaded directly from your database; refresh any time with the ↺ button
+- **One-time framework choice** — pick Soda Core or Great Expectations once; the choice persists across sessions and across tables
+- **Full check catalog** — 18 Soda checks + 17 GE checks, each filtered to the column data types they apply to:
+  - Presence & validity — null, uniqueness, value sets, allowed values
+  - Numeric statistics — min, max, average, sum, std dev, percentile, unique proportion
+  - String patterns — regex match, length bounds, date format strings
+  - Timestamps & freshness — freshness window, date min/max, parseable dates
+- **VS Code-native check picker** — `+ Add check` opens the command palette at the top of the editor, not a clipped inline dropdown
+- **Custom checks** — write any check the catalog doesn't cover: give it a name and a condition expression; generated in the correct syntax for whichever framework you picked
+- **Generated output uses your real connection details** — host, port, database, user, and schema are filled in; only the password stays as an environment variable placeholder
+- **Framework-specific configuration hints** — Soda output includes a ready-to-fill `configuration.yml` block; GE output includes the correct `pip install` line and `DATABASE_URL` export command
 
 ---
 
 ## Supported Databases
 
-| Database | Auto-detect source | Manual |
+| Database | Auto-detect | Manual |
 |---|---|---|
-| PostgreSQL | `~/.dbt/profiles.yml` / `.env` | Connection string |
+| PostgreSQL | `~/.dbt/profiles.yml` · `.env` | Connection string |
 | Redshift | `~/.dbt/profiles.yml` | Connection string |
-| Snowflake | `~/.dbt/profiles.yml` | Browse for profiles.yml |
+| Snowflake | `~/.dbt/profiles.yml` | Browse for `profiles.yml` |
 | BigQuery | `~/.dbt/profiles.yml` | Browse for service account JSON |
 
-**Custom credentials path:** set `dq-test-builder.credentialsPath` in VS Code settings to point at any profiles.yml, BigQuery service account JSON, or .env file — the extension will use that instead of the default lookup.
+**Custom credentials path** — set `dq-test-builder.credentialsPath` in VS Code Settings to point at any `profiles.yml`, BigQuery service account JSON, or `.env` file. The extension uses that path instead of the default lookup. Supports `~` for the home directory.
+
+---
+
+## Full Check Catalog
+
+### Soda Core (SodaCL)
+
+| Check | Applies to | What it generates |
+|---|---|---|
+| Missing (null) count | All | `missing_count(col) = 0` |
+| Duplicate count | All | `duplicate_count(col) = 0` |
+| Missing % threshold | All | `missing_percent(col) < N` |
+| Duplicate % threshold | All | `duplicate_percent(col) < N` |
+| Values in set | Text, Boolean | `invalid_count(col) = 0: valid values: [...]` |
+| Min value ≥ | Numeric | `min(col) >= N` |
+| Max value ≤ | Numeric | `max(col) <= N` |
+| Average between | Numeric | `avg(col) between A and B` |
+| Sum between | Numeric | `sum(col) between A and B` |
+| Std dev between | Numeric | `stddev(col) between A and B` |
+| Percentile value | Numeric | `percentile(col, P) between A and B` |
+| Min string length | Text | `min_length(col) >= N` |
+| Max string length | Text | `max_length(col) <= N` |
+| Avg string length | Text | `avg_length(col) between A and B` |
+| Freshness window | Timestamp | `freshness(col) < Xh` |
+| Date minimum | Timestamp | `min(col) >= 'YYYY-MM-DD'` |
+| Date maximum | Timestamp | `max(col) <= 'YYYY-MM-DD'` |
+| **Custom check** | All | `failed rows: name: ..., fail condition: ...` |
+
+### Great Expectations
+
+| Check | Applies to | What it generates |
+|---|---|---|
+| Not Null | All | `expect_column_values_to_not_be_null` |
+| Unique | All | `expect_column_values_to_be_unique` |
+| Mostly not null (%) | All | `expect_column_values_to_not_be_null(mostly=N)` |
+| Values in set | Text, Boolean | `expect_column_values_to_be_in_set` |
+| Values not in set | Text, Boolean | `expect_column_values_to_not_be_in_set` |
+| Unique proportion | All | `expect_column_proportion_of_unique_values_to_be_between` |
+| Min value between | Numeric | `expect_column_min_to_be_between` |
+| Max value between | Numeric | `expect_column_max_to_be_between` |
+| Mean between | Numeric | `expect_column_mean_to_be_between` |
+| Sum between | Numeric | `expect_column_sum_to_be_between` |
+| Std dev between | Numeric | `expect_column_stdev_to_be_between` |
+| Quantile value | Numeric | `expect_column_quantile_values_to_be_between` |
+| String length between | Text | `expect_column_value_lengths_to_be_between` |
+| Regex match | Text | `expect_column_values_to_match_regex` |
+| Date format (strftime) | Text, Timestamp | `expect_column_values_to_match_strftime_format` |
+| Date parseable | Timestamp | `expect_column_values_to_be_dateutil_parseable` |
+| Date range | Timestamp | `expect_column_values_to_be_between` |
+| **Custom check** | All | `expect_column_values_to_satisfy` with `meta={"name": ...}` |
+
+---
+
+## Generated Output
+
+### Soda Core
+
+```yaml
+# Soda Core — checks file
+# Generated by DQ Test Builder
+#
+# 1. Install:  pip install soda-core-postgres
+#
+# 2. Save the following as configuration.yml:
+#
+#   data_sources:
+#     raw_data:
+#       type: postgres
+#       connection:
+#         host: prod.db.example.com
+#         port: 5432
+#         database: warehouse
+#       username: analytics_user
+#       password: ${DB_PASSWORD}
+#       schema: raw_data
+#
+# 3. Run:
+#      soda scan -d raw_data -c configuration.yml checks.yml
+
+checks for raw_data.order_items:
+  # order_item_id
+  - duplicate_count(order_item_id) = 0
+  - missing_count(order_item_id) = 0
+  # amount_usd
+  - min(amount_usd) >= 0
+  - max(amount_usd) <= 99999
+  - missing_count(amount_usd) = 0
+  # status
+  - invalid_count(status) = 0:
+      valid values: ['pending', 'shipped', 'delivered', 'returned']
+  # custom check
+  - failed rows:
+      name: Amount cannot be negative
+      fail condition: amount_usd < 0
+```
+
+### Great Expectations
+
+```python
+# Great Expectations — raw_data.order_items
+# Generated by DQ Test Builder
+#
+# pip install great_expectations sqlalchemy psycopg2-binary
+#
+# Usage:
+#   export DATABASE_URL="postgresql+psycopg2://analytics_user:YOUR_PASSWORD@prod.db.example.com:5432/warehouse"
+#   python <this_file>.py
+
+import os
+import great_expectations as gx
+
+context = gx.get_context()
+
+# ── Datasource ──────────────────────────────────────────────────────────────
+# Replace YOUR_PASSWORD, or export DATABASE_URL to skip this line entirely
+CONNECTION_STRING = os.environ.get("DATABASE_URL", "postgresql+psycopg2://analytics_user:YOUR_PASSWORD@prod.db.example.com:5432/warehouse")
+
+datasource = context.sources.add_or_update_sql(name="raw_data_datasource", connection_string=CONNECTION_STRING)
+asset = datasource.add_table_asset("order_items", table_name="order_items", schema_name="raw_data")
+batch_request = asset.build_batch_request()
+
+# ── Expectation suite ────────────────────────────────────────────────────────
+suite_name = "order_items_suite"
+suite = context.add_or_update_expectation_suite(expectation_suite_name=suite_name)
+validator = context.get_validator(batch_request=batch_request, expectation_suite_name=suite_name)
+
+# ── Checks ───────────────────────────────────────────────────────────────────
+# order_item_id
+validator.expect_column_values_to_be_unique("order_item_id")
+validator.expect_column_values_to_not_be_null("order_item_id")
+
+# amount_usd
+validator.expect_column_min_to_be_between("amount_usd", min_value=0, max_value=0)
+validator.expect_column_max_to_be_between("amount_usd", min_value=0, max_value=99999)
+
+validator.save_expectation_suite(discard_failed_expectations=False)
+
+# ── Run validation ────────────────────────────────────────────────────────────
+checkpoint = context.add_or_update_checkpoint(name="order_items_checkpoint", validator=validator)
+result = checkpoint.run()
+print(result)
+```
+
+---
+
+## Connection Setup
+
+### Auto-detect (no configuration needed)
+
+On startup the extension tries the following in order:
+
+1. The path set in `dq-test-builder.credentialsPath` (if configured)
+2. `~/.dbt/profiles.yml` — reads your active target and resolves `{{ env_var('VAR') }}` templates against your shell environment
+3. A `.env` file in the open workspace root (looks for `DB_HOST`, `DB_USER`, `DB_NAME` and variants)
+
+If a connection is found, the sidebar tree populates automatically.
+
+### Manual connection
+
+Click the **⚙** icon in the Data Quality sidebar title bar. You can:
+
+- **Use an auto-detected connection** if one was found — confirm or browse for a different file
+- **Browse for a credentials file** — opens a file picker defaulting to `~/.dbt/`
+  - `profiles.yml` or `.yaml` — dbt profile format, all targets supported
+  - `.env` — key=value format with standard `DB_HOST` / `POSTGRES_*` / `DATABASE_*` variable names
+- **Paste a connection string** — `postgresql://user:password@host:5432/database`
+- **Select a BigQuery service account JSON** — standard `{"type": "service_account", "project_id": ...}` format
+
+### Persistent credentials path
+
+Set `dq-test-builder.credentialsPath` in VS Code Settings (or `settings.json`) to avoid browsing each time:
+
+```json
+{
+  "dq-test-builder.credentialsPath": "~/.dbt/profiles.yml"
+}
+```
+
+Supports `~` for the home directory. Accepts `profiles.yml`, service account JSON, or `.env` files.
 
 ---
 
 ## Requirements
 
-- VS Code 1.85+
-- A running database (PostgreSQL, Redshift, Snowflake, or BigQuery)
-- Optional: dbt project with `~/.dbt/profiles.yml`
+- **VS Code** 1.85 or later
+- A running **PostgreSQL, Redshift, Snowflake, or BigQuery** database accessible from your machine
+- **Python** with `great_expectations` or `soda-core-*` installed — only needed to *run* the generated tests, not to use the extension itself
+
+---
+
+## Privacy
+
+The extension connects only to the database you configure. No data, queries, or schema information is sent anywhere other than your own database server.
 
 ---
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE.txt)

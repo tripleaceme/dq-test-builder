@@ -2,7 +2,7 @@
   "name": "dq-test-builder",
   "displayName": "DQ Test Builder — Great Expectations & Soda",
   "description": "Visual sidebar builder that generates Great Expectations and Soda Core data quality tests from your live database schema — no code required.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/tripleaceme/dq-test-builder.git"
