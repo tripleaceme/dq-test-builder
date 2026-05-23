@@ -1,6 +1,42 @@
 import { ConnectionConfig, CustomCheck, GenerateRequest, SelectedCheck } from '../types';
 
-// ── Install hints ───────────────────────────────────────────────────────────
+// ── Connection string with real values, password placeholder ────────────────
+
+function connectionStringTemplate(cfg: ConnectionConfig | undefined, schema: string): string {
+  if (!cfg) return 'postgresql+psycopg2://YOUR_USER:YOUR_PASSWORD@YOUR_HOST:5432/YOUR_DATABASE';
+
+  switch (cfg.type) {
+    case 'snowflake': {
+      const u  = cfg.user      ?? 'YOUR_USER';
+      const a  = cfg.account   ?? 'YOUR_ACCOUNT';
+      const db = cfg.database  ?? 'YOUR_DATABASE';
+      const sc = cfg.schema    ?? schema;
+      const wh = cfg.warehouse ?? 'YOUR_WAREHOUSE';
+      const rl = cfg.role      ?? 'YOUR_ROLE';
+      return `snowflake://${u}:YOUR_PASSWORD@${a}/${db}/${sc}?warehouse=${wh}&role=${rl}`;
+    }
+    case 'bigquery': {
+      const project = cfg.projectId ?? cfg.database ?? 'YOUR_PROJECT';
+      const dataset = cfg.dataset ?? schema;
+      const base = `bigquery://${project}/${dataset}`;
+      return cfg.keyFile ? `${base}?credentials_path=${cfg.keyFile}` : base;
+    }
+    case 'redshift': {
+      const u  = cfg.user     ?? 'YOUR_USER';
+      const h  = cfg.host     ?? 'YOUR_HOST';
+      const p  = cfg.port     ?? 5439;
+      const db = cfg.database ?? 'YOUR_DATABASE';
+      return `redshift+redshift_connector://${u}:YOUR_PASSWORD@${h}:${p}/${db}`;
+    }
+    default: {
+      const u  = cfg.user     ?? 'YOUR_USER';
+      const h  = cfg.host     ?? 'YOUR_HOST';
+      const p  = cfg.port     ?? 5432;
+      const db = cfg.database ?? 'YOUR_DATABASE';
+      return `postgresql+psycopg2://${u}:YOUR_PASSWORD@${h}:${p}/${db}`;
+    }
+  }
+}
 
 function installLine(type: ConnectionConfig['type'] | undefined): string {
   switch (type) {
@@ -9,87 +45,6 @@ function installLine(type: ConnectionConfig['type'] | undefined): string {
     case 'redshift':  return '# pip install great_expectations sqlalchemy redshift_connector';
     default:          return '# pip install great_expectations sqlalchemy psycopg2-binary';
   }
-}
-
-// ── Datasource block, filled with real values from the active connection ────
-
-function datasourceBlock(cfg: ConnectionConfig | undefined, schema: string): string[] {
-  if (!cfg) {
-    return [
-      `CONNECTION_STRING = os.environ.get("DATABASE_URL", "dialect+driver://user:password@host:port/database")`,
-    ];
-  }
-
-  switch (cfg.type) {
-    case 'snowflake': {
-      const lines = [
-        `# Connection details from your DQ Test Builder session`,
-        `# Set SNOWFLAKE_PASSWORD in your environment before running`,
-        `SF_ACCOUNT   = ${q(cfg.account)}`,
-        `SF_USER      = ${q(cfg.user)}`,
-        `SF_DATABASE  = ${q(cfg.database)}`,
-        `SF_SCHEMA    = ${q(cfg.schema ?? schema)}`,
-        `SF_WAREHOUSE = ${q(cfg.warehouse)}`,
-        `SF_ROLE      = ${q(cfg.role)}`,
-        `SF_PASSWORD  = os.environ.get("SNOWFLAKE_PASSWORD", "")`,
-        ``,
-        `CONNECTION_STRING = (`,
-        `    f"snowflake://{SF_USER}:{SF_PASSWORD}@{SF_ACCOUNT}/{SF_DATABASE}/{SF_SCHEMA}"`,
-        `    f"?warehouse={SF_WAREHOUSE}&role={SF_ROLE}"`,
-        `)`,
-      ];
-      return lines;
-    }
-
-    case 'bigquery': {
-      const project = cfg.projectId ?? cfg.database;
-      const dataset = cfg.dataset ?? schema;
-      const lines = [
-        `# Connection details from your DQ Test Builder session`,
-        `BQ_PROJECT  = ${q(project)}`,
-        `BQ_DATASET  = ${q(dataset)}`,
-      ];
-      if (cfg.keyFile) {
-        lines.push(
-          `BQ_KEY_FILE = ${q(cfg.keyFile)}`,
-          ``,
-          `CONNECTION_STRING = f"bigquery://{BQ_PROJECT}/{BQ_DATASET}?credentials_path={BQ_KEY_FILE}"`,
-        );
-      } else {
-        lines.push(
-          ``,
-          `CONNECTION_STRING = f"bigquery://{BQ_PROJECT}/{BQ_DATASET}"`,
-          `# If using a service account key: append ?credentials_path=/path/to/key.json`,
-        );
-      }
-      return lines;
-    }
-
-    case 'redshift':
-    default: {
-      const dialect = cfg.type === 'redshift'
-        ? 'redshift+redshift_connector'
-        : 'postgresql+psycopg2';
-      const defaultPort = cfg.type === 'redshift' ? 5439 : 5432;
-      const envVar = cfg.type === 'redshift' ? 'REDSHIFT_PASSWORD' : 'DB_PASSWORD';
-      return [
-        `# Connection details from your DQ Test Builder session`,
-        `# Set ${envVar} in your environment before running`,
-        `DB_HOST     = ${q(cfg.host)}`,
-        `DB_PORT     = ${cfg.port ?? defaultPort}`,
-        `DB_USER     = ${q(cfg.user)}`,
-        `DB_NAME     = ${q(cfg.database)}`,
-        `DB_PASSWORD = os.environ.get(${q(envVar)}, "")`,
-        ``,
-        `CONNECTION_STRING = f"${dialect}://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"`,
-      ];
-    }
-  }
-}
-
-function q(v: string | number | undefined): string {
-  if (v === undefined || v === null) return '"YOUR_VALUE"';
-  return `"${v}"`;
 }
 
 // ── Per-check rendering ─────────────────────────────────────────────────────
@@ -167,6 +122,9 @@ export function generateGE(req: GenerateRequest): string {
   const dsName    = `${table.schema}_datasource`;
   const ckptName  = `${table.table}_checkpoint`;
 
+  const connStr = connectionStringTemplate(connectionConfig, table.schema);
+  const isBigQuery = connectionConfig?.type === 'bigquery';
+
   const lines: string[] = [
     `# Great Expectations — ${fqn}`,
     `# Generated by DQ Test Builder`,
@@ -174,8 +132,13 @@ export function generateGE(req: GenerateRequest): string {
     installLine(connectionConfig?.type),
     `#`,
     `# Usage:`,
-    `#   1. Set the password env var shown below`,
-    `#   2. python <this_file>.py`,
+    ...(isBigQuery
+      ? [`#   python <this_file>.py`]
+      : [
+          `#   export DATABASE_URL="${connStr}"`,
+          `#   python <this_file>.py`,
+        ]
+    ),
     ``,
     `import os`,
     `import great_expectations as gx`,
@@ -183,7 +146,13 @@ export function generateGE(req: GenerateRequest): string {
     `context = gx.get_context()`,
     ``,
     `# ── Datasource ─────────────────────────────────────────────────────────────`,
-    ...datasourceBlock(connectionConfig, table.schema),
+    ...(isBigQuery
+      ? [`CONNECTION_STRING = "${connStr}"`]
+      : [
+          `# Replace YOUR_PASSWORD, or export DATABASE_URL to skip this line entirely`,
+          `CONNECTION_STRING = os.environ.get("DATABASE_URL", "${connStr}")`,
+        ]
+    ),
     ``,
     `datasource = context.sources.add_or_update_sql(`,
     `    name="${dsName}",`,
