@@ -12,15 +12,17 @@ export class TestBuilderPanel {
 
   private constructor(
     panel: vscode.WebviewPanel,
-    private readonly extensionUri: vscode.Uri
+    private readonly extensionUri: vscode.Uri,
+    private readonly context: vscode.ExtensionContext,
   ) {
     this.panel = panel;
-    this.panel.webview.html = this.buildHtml();
+    const storedFramework = context.globalState.get<string>('dq-test-builder.framework') ?? null;
+    this.panel.webview.html = this.buildHtml(storedFramework);
     this.panel.onDidDispose(() => this.dispose(), null, this.disposables);
     this.panel.webview.onDidReceiveMessage(this.handleMessage.bind(this), null, this.disposables);
   }
 
-  static show(extensionUri: vscode.Uri): TestBuilderPanel {
+  static show(context: vscode.ExtensionContext): TestBuilderPanel {
     const column = vscode.window.activeTextEditor
       ? vscode.ViewColumn.Beside
       : vscode.ViewColumn.One;
@@ -37,10 +39,10 @@ export class TestBuilderPanel {
       {
         enableScripts: true,
         retainContextWhenHidden: true,
-        localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'media')],
+        localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'media')],
       }
     );
-    TestBuilderPanel.instance = new TestBuilderPanel(panel, extensionUri);
+    TestBuilderPanel.instance = new TestBuilderPanel(panel, context.extensionUri, context);
     return TestBuilderPanel.instance;
   }
 
@@ -65,6 +67,11 @@ export class TestBuilderPanel {
     existingCheckIds?: string[];
   }) {
     switch (message.type) {
+
+      case 'frameworkChosen': {
+        await this.context.globalState.update('dq-test-builder.framework', message.framework ?? undefined);
+        break;
+      }
 
       case 'generate': {
         if (!message.framework || !message.table) return;
@@ -120,9 +127,10 @@ export class TestBuilderPanel {
     }
   }
 
-  private buildHtml(): string {
+  private buildHtml(storedFramework: string | null): string {
     const cspSource = this.panel.webview.cspSource;
     const catalog = JSON.stringify({ soda: SODA_CHECKS, ge: GE_CHECKS });
+    const initialFramework = JSON.stringify(storedFramework);
 
     return /* html */`<!DOCTYPE html>
 <html lang="en">
@@ -429,13 +437,11 @@ export class TestBuilderPanel {
   // Catalog injected from extension host
   const CATALOG = ${catalog};
 
-  // App state
+  // App state — framework restored from previous session via globalState
   let state = {
-    table: null,       // TableInfo
-    framework: null,   // 'soda' | 'ge'
-    // columnName → array of { checkId, params: {} }
+    table: null,
+    framework: ${initialFramework},
     checks: {},
-    // columnName → array of { name, expression }
     customChecks: {},
   };
 
@@ -476,6 +482,7 @@ export class TestBuilderPanel {
 
   function pickFramework(fw) {
     state.framework = fw;
+    vscode.postMessage({ type: 'frameworkChosen', framework: fw });
     buildUI();
     show('builder');
   }
@@ -486,6 +493,7 @@ export class TestBuilderPanel {
     state.checks = {};
     state.customChecks = {};
     state.framework = null;
+    vscode.postMessage({ type: 'frameworkChosen', framework: null });
     show('framework-picker');
   }
 

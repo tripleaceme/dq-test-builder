@@ -33,7 +33,7 @@ export async function activate(context: vscode.ExtensionContext) {
           vscode.window.showErrorMessage('No database connection. Use ⚙ to configure one.');
           return;
         }
-        const panel = TestBuilderPanel.show(context.extensionUri);
+        const panel = TestBuilderPanel.show(context);
         if (dbClient) panel.setConnection(dbClient.connectionConfig);
         const columns: ColumnInfo[] = await vscode.window.withProgress(
           {
@@ -95,13 +95,20 @@ async function connectWithConfig(config: ConnectionConfig) {
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     treeProvider.setError(`Cannot connect: ${msg}`);
-    const action = await vscode.window.showErrorMessage(
-      `DQ Builder: connection failed: ${msg}`,
-      'Select credentials file'
-    );
-    if (action === 'Select credentials file') {
-      const newConfig = await promptForConnection();
-      if (newConfig) await connectWithConfig(newConfig);
+
+    // Timeouts and refused connections are transient — don't prompt to change credentials
+    const isAuthError = /auth|password|credential|SASL|permission|denied|login|invalid/i.test(msg);
+    if (isAuthError) {
+      const action = await vscode.window.showErrorMessage(
+        `DQ Builder: connection failed: ${msg}`,
+        'Select credentials file'
+      );
+      if (action === 'Select credentials file') {
+        const newConfig = await promptForConnection();
+        if (newConfig) await connectWithConfig(newConfig);
+      }
+    } else {
+      vscode.window.showErrorMessage(`DQ Builder: connection failed: ${msg}`);
     }
   }
 }
