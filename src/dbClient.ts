@@ -212,10 +212,10 @@ export function createAdapter(config: ConnectionConfig): DbAdapter {
 // Thin wrapper kept so schemaTreeProvider doesn't need changes
 export class DbClient implements DbAdapter {
   private adapter: DbAdapter;
-  readonly connectionType: ConnectionConfig['type'];
+  readonly connectionConfig: ConnectionConfig;
   constructor(config: ConnectionConfig) {
     this.adapter = createAdapter(config);
-    this.connectionType = config.type;
+    this.connectionConfig = config;
   }
   testConnection()               { return this.adapter.testConnection(); }
   getSchemas()                   { return this.adapter.getSchemas(); }

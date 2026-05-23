@@ -1,19 +1,6 @@
 import { ConnectionConfig, CustomCheck, GenerateRequest, SelectedCheck } from '../types';
 
-// ── Connection string templates per DB type ─────────────────────────────────
-
-function connectionStringTemplate(type: ConnectionConfig['type'] | undefined): string {
-  switch (type) {
-    case 'snowflake':
-      return 'snowflake://YOUR_USER:YOUR_PASSWORD@YOUR_ACCOUNT/YOUR_DATABASE/YOUR_SCHEMA?warehouse=YOUR_WAREHOUSE&role=YOUR_ROLE';
-    case 'bigquery':
-      return 'bigquery://YOUR_PROJECT/YOUR_DATASET\n# Service account: bigquery://YOUR_PROJECT/YOUR_DATASET?credentials_path=/path/to/key.json';
-    case 'redshift':
-      return 'redshift+redshift_connector://YOUR_USER:YOUR_PASSWORD@YOUR_HOST:5439/YOUR_DATABASE';
-    default:
-      return 'postgresql+psycopg2://YOUR_USER:YOUR_PASSWORD@YOUR_HOST:5432/YOUR_DATABASE';
-  }
-}
+// ── Install hints ───────────────────────────────────────────────────────────
 
 function installLine(type: ConnectionConfig['type'] | undefined): string {
   switch (type) {
@@ -22,6 +9,87 @@ function installLine(type: ConnectionConfig['type'] | undefined): string {
     case 'redshift':  return '# pip install great_expectations sqlalchemy redshift_connector';
     default:          return '# pip install great_expectations sqlalchemy psycopg2-binary';
   }
+}
+
+// ── Datasource block, filled with real values from the active connection ────
+
+function datasourceBlock(cfg: ConnectionConfig | undefined, schema: string): string[] {
+  if (!cfg) {
+    return [
+      `CONNECTION_STRING = os.environ.get("DATABASE_URL", "dialect+driver://user:password@host:port/database")`,
+    ];
+  }
+
+  switch (cfg.type) {
+    case 'snowflake': {
+      const lines = [
+        `# Connection details from your DQ Test Builder session`,
+        `# Set SNOWFLAKE_PASSWORD in your environment before running`,
+        `SF_ACCOUNT   = ${q(cfg.account)}`,
+        `SF_USER      = ${q(cfg.user)}`,
+        `SF_DATABASE  = ${q(cfg.database)}`,
+        `SF_SCHEMA    = ${q(cfg.schema ?? schema)}`,
+        `SF_WAREHOUSE = ${q(cfg.warehouse)}`,
+        `SF_ROLE      = ${q(cfg.role)}`,
+        `SF_PASSWORD  = os.environ.get("SNOWFLAKE_PASSWORD", "")`,
+        ``,
+        `CONNECTION_STRING = (`,
+        `    f"snowflake://{SF_USER}:{SF_PASSWORD}@{SF_ACCOUNT}/{SF_DATABASE}/{SF_SCHEMA}"`,
+        `    f"?warehouse={SF_WAREHOUSE}&role={SF_ROLE}"`,
+        `)`,
+      ];
+      return lines;
+    }
+
+    case 'bigquery': {
+      const project = cfg.projectId ?? cfg.database;
+      const dataset = cfg.dataset ?? schema;
+      const lines = [
+        `# Connection details from your DQ Test Builder session`,
+        `BQ_PROJECT  = ${q(project)}`,
+        `BQ_DATASET  = ${q(dataset)}`,
+      ];
+      if (cfg.keyFile) {
+        lines.push(
+          `BQ_KEY_FILE = ${q(cfg.keyFile)}`,
+          ``,
+          `CONNECTION_STRING = f"bigquery://{BQ_PROJECT}/{BQ_DATASET}?credentials_path={BQ_KEY_FILE}"`,
+        );
+      } else {
+        lines.push(
+          ``,
+          `CONNECTION_STRING = f"bigquery://{BQ_PROJECT}/{BQ_DATASET}"`,
+          `# If using a service account key: append ?credentials_path=/path/to/key.json`,
+        );
+      }
+      return lines;
+    }
+
+    case 'redshift':
+    default: {
+      const dialect = cfg.type === 'redshift'
+        ? 'redshift+redshift_connector'
+        : 'postgresql+psycopg2';
+      const defaultPort = cfg.type === 'redshift' ? 5439 : 5432;
+      const envVar = cfg.type === 'redshift' ? 'REDSHIFT_PASSWORD' : 'DB_PASSWORD';
+      return [
+        `# Connection details from your DQ Test Builder session`,
+        `# Set ${envVar} in your environment before running`,
+        `DB_HOST     = ${q(cfg.host)}`,
+        `DB_PORT     = ${cfg.port ?? defaultPort}`,
+        `DB_USER     = ${q(cfg.user)}`,
+        `DB_NAME     = ${q(cfg.database)}`,
+        `DB_PASSWORD = os.environ.get(${q(envVar)}, "")`,
+        ``,
+        `CONNECTION_STRING = f"${dialect}://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"`,
+      ];
+    }
+  }
+}
+
+function q(v: string | number | undefined): string {
+  if (v === undefined || v === null) return '"YOUR_VALUE"';
+  return `"${v}"`;
 }
 
 // ── Per-check rendering ─────────────────────────────────────────────────────
@@ -93,20 +161,20 @@ function renderCustom(c: CustomCheck): string {
 // ── Main generator ──────────────────────────────────────────────────────────
 
 export function generateGE(req: GenerateRequest): string {
-  const { table, checks, customChecks, connectionType } = req;
-  const fqn        = `${table.schema}.${table.table}`;
-  const suiteName  = `${table.table}_suite`;
-  const dsName     = `${table.schema}_datasource`;
-  const ckptName   = `${table.table}_checkpoint`;
+  const { table, checks, customChecks, connectionConfig } = req;
+  const fqn       = `${table.schema}.${table.table}`;
+  const suiteName = `${table.table}_suite`;
+  const dsName    = `${table.schema}_datasource`;
+  const ckptName  = `${table.table}_checkpoint`;
 
   const lines: string[] = [
     `# Great Expectations — ${fqn}`,
     `# Generated by DQ Test Builder`,
     `#`,
-    installLine(connectionType),
+    installLine(connectionConfig?.type),
     `#`,
     `# Usage:`,
-    `#   1. Set CONNECTION_STRING below (or export DATABASE_URL to your shell)`,
+    `#   1. Set the password env var shown below`,
     `#   2. python <this_file>.py`,
     ``,
     `import os`,
@@ -115,10 +183,7 @@ export function generateGE(req: GenerateRequest): string {
     `context = gx.get_context()`,
     ``,
     `# ── Datasource ─────────────────────────────────────────────────────────────`,
-    `CONNECTION_STRING = os.environ.get(`,
-    `    "DATABASE_URL",`,
-    `    "${connectionStringTemplate(connectionType)}",`,
-    `)`,
+    ...datasourceBlock(connectionConfig, table.schema),
     ``,
     `datasource = context.sources.add_or_update_sql(`,
     `    name="${dsName}",`,
@@ -154,12 +219,10 @@ export function generateGE(req: GenerateRequest): string {
     lines.push('');
   }
 
-  if (customChecks.length > 0) {
-    for (const c of customChecks) {
-      lines.push(`# ${c.columnName} — custom: ${c.name}`);
-      lines.push(renderCustom(c));
-      lines.push('');
-    }
+  for (const c of customChecks) {
+    lines.push(`# ${c.columnName} — custom: ${c.name}`);
+    lines.push(renderCustom(c));
+    lines.push('');
   }
 
   lines.push(

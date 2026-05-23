@@ -8,7 +8,7 @@ export class TestBuilderPanel {
   static instance: TestBuilderPanel | undefined;
   private readonly panel: vscode.WebviewPanel;
   private disposables: vscode.Disposable[] = [];
-  private connectionType: ConnectionConfig['type'] | undefined;
+  private connectionConfig: ConnectionConfig | undefined;
 
   private constructor(
     panel: vscode.WebviewPanel,
@@ -49,8 +49,8 @@ export class TestBuilderPanel {
     this.panel.webview.postMessage({ type: 'loadTable', table });
   }
 
-  setConnectionType(type: ConnectionConfig['type']) {
-    this.connectionType = type;
+  setConnection(config: ConnectionConfig) {
+    this.connectionConfig = config;
   }
 
   private async handleMessage(message: {
@@ -73,7 +73,7 @@ export class TestBuilderPanel {
           table: message.table,
           checks: message.checks ?? [],
           customChecks: message.customChecks ?? [],
-          connectionType: this.connectionType,
+          connectionConfig: this.connectionConfig,
         };
         const code = message.framework === 'soda' ? generateSoda(req) : generateGE(req);
         const lang = message.framework === 'soda' ? 'yaml' : 'python';

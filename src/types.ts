@@ -47,7 +47,7 @@ export interface GenerateRequest {
   table: TableInfo;
   checks: SelectedCheck[];
   customChecks: CustomCheck[];
-  connectionType?: ConnectionConfig['type'];
+  connectionConfig?: ConnectionConfig;
 }
 
 export interface ConnectionConfig {
