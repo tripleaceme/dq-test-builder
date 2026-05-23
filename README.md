@@ -12,7 +12,7 @@ Connect to your live database, browse schemas and tables directly in the VS Code
 
 The extension auto-detects your credentials from `~/.dbt/profiles.yml` or a workspace `.env` file on startup. Your schemas and tables appear immediately in the **Data Quality** sidebar — no configuration required if you already have dbt set up.
 
-![Sidebar tree and framework picker](schema-table-framework%20view.png)
+![Sidebar tree and framework picker](media/schema-table-framework%20view.png)
 
 Click any table to open the test builder panel.
 
@@ -22,7 +22,7 @@ Click any table to open the test builder panel.
 
 Choose **Soda Core** or **Great Expectations** the first time you open a table. The choice is remembered across VS Code sessions — you will never be asked again unless you explicitly switch.
 
-![Framework picker](select_framework.png)
+![Framework picker](media/select_framework.png)
 
 Checks are tailored to the framework you pick. There is no mixing: Soda checks produce SodaCL YAML, GE checks produce Python.
 
@@ -32,7 +32,7 @@ Checks are tailored to the framework you pick. There is no mixing: Soda checks p
 
 Every column is shown with its data type badge. Click a column to expand it and use **+ Add check** to open VS Code's native command palette — searchable, keyboard-navigable, and filtered to checks that apply to that column's type.
 
-![Check builder with checks added per column](GE-choose-test-2.png)
+![Check builder with checks added per column](media/GE-choose-test-2.png)
 
 Numeric columns get range checks (min, max, avg, sum, percentile). Text columns get length and regex checks. Timestamp columns get freshness and date-range checks. Booleans and categoricals get value-set checks. Every column gets null and uniqueness checks.
 
@@ -42,11 +42,11 @@ Numeric columns get range checks (min, max, avg, sum, percentile). Text columns 
 
 Click **Generate Tests**. The output opens in a new editor tab with the correct language mode already set (YAML for Soda, Python for GE). Save the file wherever your project expects it — there is no fixed output path.
 
-![Generated GE Python alongside the builder](GE-fct_orders-test.png)
+![Generated GE Python alongside the builder](media/GE-fct_orders-test.png)
 
-![Full generated GE Python file](GE-test-generated.png)
+![Full generated GE Python file](media/GE-test-generated.png)
 
-![Soda Core YAML with configuration hint](Soda-dim_channels-test.png)
+![Soda Core YAML with configuration hint](media/Soda-dim_channels-test.png)
 
 ---
 
