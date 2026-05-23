@@ -1,6 +1,6 @@
 # DQ Test Builder — Great Expectations & Soda
 
-> Build production-ready data quality tests visually — no memorising SodaCL or Great Expectations syntax.
+> Build production-ready data quality tests visually, no memorising SodaCL or Great Expectations syntax.
 
 Connect to your live database, browse schemas and tables directly in the VS Code sidebar, pick checks from a full catalog filtered to each column's data type, and generate ready-to-run **SodaCL YAML** or **Great Expectations Python** in one click.
 
@@ -10,7 +10,7 @@ Connect to your live database, browse schemas and tables directly in the VS Code
 
 ### 1. Connect and browse your database
 
-The extension auto-detects your credentials from `~/.dbt/profiles.yml` or a workspace `.env` file on startup. Your schemas and tables appear immediately in the **Data Quality** sidebar — no configuration required if you already have dbt set up.
+The extension auto-detects your credentials from `~/.dbt/profiles.yml` or a workspace `.env` file on startup. Your schemas and tables appear immediately in the **Data Quality** sidebar, no configuration required if you already have dbt set up.
 
 ![Sidebar tree and framework picker](media/schema-table-framework%20view.png)
 
@@ -20,7 +20,7 @@ Click any table to open the test builder panel.
 
 ### 2. Pick your framework — once per session
 
-Choose **Soda Core** or **Great Expectations** the first time you open a table. The choice is remembered across VS Code sessions — you will never be asked again unless you explicitly switch.
+Choose **Soda Core** or **Great Expectations** the first time you open a table. The choice is remembered across VS Code and you will never be asked again unless you explicitly switch.
 
 ![Framework picker](media/select_framework.png)
 
@@ -30,7 +30,7 @@ Checks are tailored to the framework you pick. There is no mixing: Soda checks p
 
 ### 3. Add checks per column
 
-Every column is shown with its data type badge. Click a column to expand it and use **+ Add check** to open VS Code's native command palette — searchable, keyboard-navigable, and filtered to checks that apply to that column's type.
+Every column is shown with its data type badge. Click a column to expand it and use **+ Add check** to open VS Code's native command palette, searchable, keyboard-navigable, and filtered to checks that apply to that column's type.
 
 ![Check builder with checks added per column](media/GE-choose-test-2.png)
 
@@ -40,7 +40,7 @@ Numeric columns get range checks (min, max, avg, sum, percentile). Text columns 
 
 ### 4. Generate — opens in a new editor tab
 
-Click **Generate Tests**. The output opens in a new editor tab with the correct language mode already set (YAML for Soda, Python for GE). Save the file wherever your project expects it — there is no fixed output path.
+Click **Generate Tests**. The output opens in a new editor tab with the correct language mode already set (YAML for Soda, Python for GE). Save the file wherever your project expects it, there is no fixed output path.
 
 ![Generated GE Python alongside the builder](media/GE-fct_orders-test.png)
 
@@ -52,18 +52,18 @@ Click **Generate Tests**. The output opens in a new editor tab with the correct 
 
 ## Features
 
-- **Zero-config auto-connect** — reads `~/.dbt/profiles.yml` (resolves `{{ env_var('...') }}` templates), workspace `.env`, or a custom path you set once in VS Code settings
-- **Live schema browser** — schemas → tables loaded directly from your database; refresh any time with the ↺ button
-- **One-time framework choice** — pick Soda Core or Great Expectations once; the choice persists across sessions and across tables
-- **Full check catalog** — 18 Soda checks + 17 GE checks, each filtered to the column data types they apply to:
+- **Zero-config auto-connect:** Reads `~/.dbt/profiles.yml` (resolves `{{ env_var('...') }}` templates), workspace `.env`, or a custom path you set once in VS Code settings
+- **Live schema browser:** schemas → tables loaded directly from your database; refresh any time with the ↺ button
+- **One-time framework choice:** Pick Soda Core or Great Expectations once; the choice persists across sessions and across tables
+- **Full check catalog:** 18 Soda checks + 17 GE checks, each filtered to the column data types they apply to:
   - Presence & validity — null, uniqueness, value sets, allowed values
   - Numeric statistics — min, max, average, sum, std dev, percentile, unique proportion
   - String patterns — regex match, length bounds, date format strings
   - Timestamps & freshness — freshness window, date min/max, parseable dates
-- **VS Code-native check picker** — `+ Add check` opens the command palette at the top of the editor, not a clipped inline dropdown
-- **Custom checks** — write any check the catalog doesn't cover: give it a name and a condition expression; generated in the correct syntax for whichever framework you picked
-- **Generated output uses your real connection details** — host, port, database, user, and schema are filled in; only the password stays as an environment variable placeholder
-- **Framework-specific configuration hints** — Soda output includes a ready-to-fill `configuration.yml` block; GE output includes the correct `pip install` line and `DATABASE_URL` export command
+- **VS Code-native check picker:** `+ Add check` opens the command palette at the top of the editor, not a clipped inline dropdown
+- **Custom checks:** Write any check the catalog doesn't cover: give it a name and a condition expression; generated in the correct syntax for whichever framework you picked
+- **Generated output uses your real connection details:** host, port, database, user, and schema are filled in; only the password stays as an environment variable placeholder
+- **Framework-specific configuration hints:** Soda output includes a ready-to-fill `configuration.yml` block; GE output includes the correct `pip install` line and `DATABASE_URL` export command
 
 ---
 
@@ -76,7 +76,7 @@ Click **Generate Tests**. The output opens in a new editor tab with the correct 
 | Snowflake | `~/.dbt/profiles.yml` | Browse for `profiles.yml` |
 | BigQuery | `~/.dbt/profiles.yml` | Browse for service account JSON |
 
-**Custom credentials path** — set `dq-test-builder.credentialsPath` in VS Code Settings to point at any `profiles.yml`, BigQuery service account JSON, or `.env` file. The extension uses that path instead of the default lookup. Supports `~` for the home directory.
+**Custom credentials path:** Set `dq-test-builder.credentialsPath` in VS Code Settings to point at any `profiles.yml`, BigQuery service account JSON, or `.env` file. The extension uses that path instead of the default lookup. Supports `~` for the home directory.
 
 ---
 
@@ -238,12 +238,12 @@ If a connection is found, the sidebar tree populates automatically.
 
 Click the **⚙** icon in the Data Quality sidebar title bar. You can:
 
-- **Use an auto-detected connection** if one was found — confirm or browse for a different file
-- **Browse for a credentials file** — opens a file picker defaulting to `~/.dbt/`
+- **Use an auto-detected connection** if one was found, confirm or browse for a different file
+- **Browse for a credentials file:** opens a file picker defaulting to `~/.dbt/`
   - `profiles.yml` or `.yaml` — dbt profile format, all targets supported
   - `.env` — key=value format with standard `DB_HOST` / `POSTGRES_*` / `DATABASE_*` variable names
-- **Paste a connection string** — `postgresql://user:password@host:5432/database`
-- **Select a BigQuery service account JSON** — standard `{"type": "service_account", "project_id": ...}` format
+- **Paste a connection string:** `postgresql://user:password@host:5432/database`
+- **Select a BigQuery service account JSON:** standard `{"type": "service_account", "project_id": ...}` format
 
 ### Persistent credentials path
 
@@ -263,7 +263,7 @@ Supports `~` for the home directory. Accepts `profiles.yml`, service account JSO
 
 - **VS Code** 1.85 or later
 - A running **PostgreSQL, Redshift, Snowflake, or BigQuery** database accessible from your machine
-- **Python** with `great_expectations` or `soda-core-*` installed — only needed to *run* the generated tests, not to use the extension itself
+- **Python** with `great_expectations` or `soda-core-*` installed, only needed to *run* the generated tests, not to use the extension itself
 
 ---
 
