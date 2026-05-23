@@ -89,6 +89,11 @@ export class TestBuilderPanel {
         break;
       }
 
+      case 'showWarning': {
+        vscode.window.showWarningMessage((message as unknown as { text: string }).text);
+        break;
+      }
+
       case 'showCheckPicker': {
         const { columnName, columnCategory, framework, existingCheckIds = [] } = message as Required<typeof message>;
         if (!columnName || !columnCategory || !framework) return;
@@ -488,12 +493,14 @@ export class TestBuilderPanel {
   }
 
   function switchFramework() {
-    const confirmSwitch = confirm('Switching framework will clear all selected checks. Continue?');
-    if (!confirmSwitch) return;
     state.checks = {};
     state.customChecks = {};
     state.framework = null;
     vscode.postMessage({ type: 'frameworkChosen', framework: null });
+    if (state.table) {
+      document.getElementById('picker-table-name').textContent =
+        state.table.schema + '.' + state.table.table + ' (' + state.table.columns.length + ' columns)';
+    }
     show('framework-picker');
   }
 
@@ -718,7 +725,7 @@ export class TestBuilderPanel {
       }
       for (const c of (state.customChecks[col.name] || [])) {
         if (!c.name.trim() || !c.expression.trim()) {
-          alert('Every custom check needs both a Name and a condition. Please complete all custom checks first.');
+          vscode.postMessage({ type: 'showWarning', text: 'Every custom check needs both a Name and a condition. Please complete all custom checks first.' });
           return;
         }
         allCustom.push({ columnName: col.name, name: c.name, expression: c.expression });
@@ -726,7 +733,7 @@ export class TestBuilderPanel {
     }
 
     if (allChecks.length === 0 && allCustom.length === 0) {
-      alert('No checks selected yet. Add at least one check before generating.');
+      vscode.postMessage({ type: 'showWarning', text: 'No checks selected yet. Add at least one check before generating.' });
       return;
     }
 

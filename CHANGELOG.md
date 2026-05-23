@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.1] — 2026-05-23
+
+### Fixed
+- **Switch framework button broken** — VS Code webviews suppress `window.confirm()` (always returns `false`), so the switch was silently blocked. Removed the confirm dialog; switching now works immediately and re-shows the framework picker for the current table
+- **`alert()` calls replaced** — validation warnings (incomplete custom checks, no checks added) now appear as VS Code native warning messages instead of the no-op `window.alert()`
+- **Framework picker table name missing on switch** — `picker-table-name` was only set in `loadTable()`; now also updated when `switchFramework()` is called so the table name is visible in the picker
+
+---
+
 ## [0.2.0] — 2026-05-23
 
 ### Added
